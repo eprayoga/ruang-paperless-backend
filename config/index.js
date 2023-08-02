@@ -1,7 +1,9 @@
 const dotenv = require("dotenv");
+const path = require("path");
 
 dotenv.config();
 
 module.exports = {
-    jwtKey: process.env.SECRET,
+  rootPath: path.resolve(__dirname, ".."),
+  jwtKey: process.env.SECRET,
 }
