@@ -1,7 +1,9 @@
 const nodemailer = require("nodemailer");
 const Mailgen = require("mailgen");
 const bcrypt = require("bcrypt");
-const pool = require("../../../db/index");
+const pool = require("../../../db");
+const config = require("../../../config");
+const jwt = require("jsonwebtoken");
 
 // For Hashing Password
 const salt = 10;
@@ -15,14 +17,14 @@ module.exports = {
                 if (error) throw error;
                 if (results.rows.length) {
                     return res.status(422).json({
-                        message: "NIK already exist!"
+                        message: "NIK sudah digunakan sebelumnya!"
                     })
                 } else {
                     pool.query("SELECT s FROM users s WHERE s.email = $1", [email], async (error, results) => {
                         if (error) throw error;
                         if (results.rows.length) {
                             return res.status(422).json({
-                                message: "Email already exist!"
+                                message: "Email yang digunakan sudah terdaftar!"
                             })
                         } else {
                             // Generate user_id
@@ -97,9 +99,7 @@ module.exports = {
         
                             // Password Encrypted
                             bcrypt.hash(password, salt, async (err, hash) => {
-                                if (err) {
-                                    console.log(err);
-                                }
+                                if (err) throw error;
         
                                 pool.query("INSERT INTO users (user_id, nik, fullname, email, birth_date, phone_number, password) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *", [user_id, nik, fullname, email, birth_date, phone_number, hash], (error, results) => {
                                     if (error) throw error;
@@ -120,10 +120,7 @@ module.exports = {
                         }
                     });
                 }
-            })
-
-            
-            
+            })  
         } catch (err) {
             if (err && err.name === "ValidationError") {
                 return res.status(422).json({
@@ -136,21 +133,54 @@ module.exports = {
         };
     },
 
-    signIn: (req, res, next) => {
-        // const {email, password} = req.body;
+    signIn: (req, res) => {
+        try {
+            const {email, password} = req.body;
+    
+            pool.query("SELECT * FROM users WHERE email = $1", [email], async (error, results) => {
+                if (error) throw error;
+                if (results.rows.length) {
+                    const user = results.rows[0];
 
-        // res.status(200).json({
-        //     data: {
-        //         email,
-        //         password
-        //     }
-        // })
+                    bcrypt.compare(password, user.password, (error, response) => {
+                        if (error) throw error;
+                        if (response) {
+                            const token = jwt.sign(
+                                {
+                                    user: {
+                                        user_id: user.user_id,
+                                        nik: user.nik,
+                                        fullname: user.fullname,
+                                        email: user.email,
+                                        birth_date: user.birth_date,
+                                        phone_number: user.phone_number,
+                                        quota: user.quota,
+                                    }
+                                },
+                                config.jwtKey
+                            );
 
-        pool.query("SELECT * FROM users", (error, result) => {
-            if (error) throw error;
-            res.status(200).json({
-                data: result.rows,
-            })
-        })
+                            res.status(200).json({
+                                data: {
+                                    token
+                                }
+                            })
+                        } else {
+                            res.status(403).json({
+                                message: "Password yang anda masukkan salah!",
+                            })
+                        }
+                    })
+                } else {
+                    res.status(403).json({
+                        message: "email yang anda masukkan belum terdaftar.",
+                    });
+                }
+            });
+        } catch (error) {
+            res.status(500).json({
+                message: err.message || `Internal server error!`,
+            });
+        }
     },
 }
