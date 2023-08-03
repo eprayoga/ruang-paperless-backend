@@ -1,11 +1,15 @@
 const fs = require("fs");
 const fsPromise = require("fs/promises");
 const path = require("path");
+const crypto = require('crypto');
+const { PDFDocument } = require('pdf-lib');
+const PDFParser = require('pdf-parse');
+const qrcode = require("qrcode");
 const config = require("../../../config");
 const pool = require("../../../db");
 
 module.exports = {
-    uploadDocument: (req, res) => {
+    uploadDocument: async (req, res) => {
         try {
             if (req.file) {
                 const { document_name } = req.body;
@@ -42,7 +46,40 @@ module.exports = {
                 const src = fs.createReadStream(tmp_path);
                 const dest = fs.createWriteStream(target_path);
 
-                src.pipe(dest);
+                await src.pipe(dest);
+                
+                const fileData = fs.readFileSync(tmp_path);
+
+                const pdfDoc = await PDFDocument.load(fileData);
+                let qrCodePath = path.resolve(`public/images/qrcode-${originalNotExt}.png`);
+                qrcode.toFile(qrCodePath, "Ini link qrcode", {
+                    errorCorrectionLevel: "H"
+                }, async (err) => {
+                    if (err) throw err;
+                    const pages = pdfDoc.getPages();
+                    const firstPage = pages[0];
+
+                    let img = fs.readFileSync(qrCodePath);
+
+                    img = await pdfDoc.embedPng(img);
+
+                    const { width } = firstPage.getSize();
+
+                    firstPage.drawImage(img, {
+                    x: width - 120,
+                    y: 50,
+                    width: 80,
+                    height: 80,
+                    });
+
+                    fs.unlinkSync(qrCodePath);
+
+                    const qrPdfBytesTemp = await pdfDoc.save();
+
+                    let filename = 'draft-' + originalNotExt + "_" + datetime + "." + originalExt;
+
+                    fs.writeFileSync(`public/uploads/document/${filename}`, qrPdfBytesTemp);
+                });
 
                 pool.query("INSERT INTO documents (document_id, document_name, document_path, created_by) VALUES ($1, $2, $3, $4)",
                     [document_id, document_name, filename, req.user.user_id], (error, results) => {
@@ -96,18 +133,25 @@ module.exports = {
                     res.status(200).json({
                         message: "Dokumen ditemukan",
                         data: results.rows[0],
-                    })
+                    });
                 } else {
                     res.status(404).json({
                         message: "Dokumen tidak ditemukan."
-                    })
+                    });
                 };
             });
         } catch (error) {
             res.status(500).json({
                 message: error.message || `Internal server error!`,
             });
-        }
+        };
+    },
 
-    }
+    documentSign: (req, res) => {
+        const { id } = req.params;
+
+        res.status(201).json({
+            message: "Tanda tangan dokument : " + id,
+        });
+    },
 };
