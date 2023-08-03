@@ -46,6 +46,22 @@ module.exports = {
                             for (var i = 0, n = charset.length; i < length; ++i) {
                                 password += charset.charAt(Math.floor(Math.random() * n));
                             };
+
+                            // Generate random pin_id
+                            var length = 16;
+                            charset =  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz";
+                            pin_id = "";
+                            for (var i = 0, n = charset.length; i < length; ++i) {
+                                pin_id += charset.charAt(Math.floor(Math.random() * n));
+                            };
+
+                            // Generate random pin
+                            var length = 6;
+                            charset =  "0123456789";
+                            pin = "";
+                            for (var i = 0, n = charset.length; i < length; ++i) {
+                                pin += charset.charAt(Math.floor(Math.random() * n));
+                            };
         
                             // Send to Email
                             let testAccount = await nodemailer.createTestAccount();
@@ -72,9 +88,10 @@ module.exports = {
                             let response = {
                                 body: {
                                     name : fullname,
-                                    intro: "Daftar akun Ruang-Paperless mu telah berhasil, silahkan SignIn dengan password dibawah ini :",
+                                    intro: "Daftar akun Ruang-Paperless mu telah berhasil, silahkan SignIn dengan password dibawah ini dan gunakan PIN dibawah untuk proses Tanda Tangan Dokumen :",
                                     dictionary: {
                                         Password: password,
+                                        PIN: pin,
                                     },
                                     action: {
                                         instructions: "Klik tombol dibawah untuk melanjutkan ke proses SignIn.",
@@ -100,21 +117,24 @@ module.exports = {
                             // Password Encrypted
                             bcrypt.hash(password, salt, async (err, hash) => {
                                 if (err) throw error;
-        
+
                                 pool.query("INSERT INTO users (user_id, nik, fullname, email, birth_date, phone_number, password) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *", [user_id, nik, fullname, email, birth_date, phone_number, hash], (error, results) => {
                                     if (error) throw error;
-        
-                                    transporter.sendMail(message).then((info) => {
-                                        return res.status(201)
-                                        .json({ 
-                                            msg: "you should receive an email",
-                                            info : info.messageId,
-                                            preview: nodemailer.getTestMessageUrl(info),
-                                            user: results.rows[0],
+
+                                    pool.query("INSERT INTO pins (pin_id, pin, user_id, created_by) VALUES ($1, $2, $3, $4)", [pin_id, pin, user_id, user_id], (error, results) => {
+                                        if (err) throw error;
+
+                                        transporter.sendMail(message).then((info) => {
+                                            return res.status(201)
+                                            .json({ 
+                                                msg: "you should receive an email",
+                                                info : info.messageId,
+                                                preview: nodemailer.getTestMessageUrl(info),
+                                            })
+                                        }).catch(error => {
+                                            return res.status(500).json({ error });
                                         })
-                                    }).catch(error => {
-                                        return res.status(500).json({ error })
-                                    })
+                                    });
                                 });
                             })
                         }
@@ -160,7 +180,7 @@ module.exports = {
                                 config.jwtKey
                             );
 
-                            pool.query("UPDATE users SET last_signin=CURRENT_DATE WHERE user_id=$1", [user.user_id], (error, results) => {
+                            pool.query("UPDATE users SET last_signin=CURRENT_DATE, status='verified' WHERE user_id=$1", [user.user_id], (error, results) => {
                                 if (error) throw error;
 
                                 res.status(200).json({
