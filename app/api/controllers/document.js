@@ -68,7 +68,25 @@ module.exports = {
         }
     },
 
-    documentDetail: (req, res) => {
+    getAllUserDocument: (req, res) => {
+        try {
+            const user = req.user;
+
+            pool.query("SELECT * FROM documents WHERE created_by=$1", [user.user_id], (error, results) => {
+                if (error) throw error;
+
+                res.status(200).json({
+                    data: results.rows
+                })
+            });
+        } catch (error) {
+            res.status(500).json({
+                message: error.message || `Internal server error!`,
+            });
+        }
+    },
+
+    getDocumentDetail: (req, res) => {
         try {
             const { id } = req.params;
 
