@@ -7,6 +7,7 @@ const PDFParser = require('pdf-parse');
 const qrcode = require("qrcode");
 const config = require("../../../config");
 const pool = require("../../../db");
+const { signWithRSA } = require("../../helper/rsa");
 
 module.exports = {
     uploadDocument: async (req, res) => {
@@ -148,10 +149,80 @@ module.exports = {
     },
 
     documentSign: (req, res) => {
-        const { id } = req.params;
+        try {
+            const { id } = req.params;
+            const user = req.user;
 
-        res.status(201).json({
-            message: "Tanda tangan dokument : " + id,
-        });
+            // Generate RSA key pair
+            const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
+                modulusLength: 2048,
+                publicKeyEncoding: {
+                    type: "pkcs1",
+                    format: "pem",
+                },
+                privateKeyEncoding: {
+                    type: "pkcs1",
+                    format: "pem",
+                },
+            });
+
+            const privateKeyPath = `private-${id}.pem`;
+            const publicKeyPath = `public-${id}.pem`;
+
+            fs.writeFileSync(`public/uploads/key/${privateKeyPath}`, privateKey);
+            fs.writeFileSync(`public/uploads/key/${publicKeyPath}`, publicKey);
+
+            pool.query("SELECT document_path, document_id FROM documents WHERE document_id=$1 AND created_by=$2", [id, user.user_id], async (error, results) => {
+                if (error) throw error;
+
+                if (results.rows.length) {
+                    const doc = results.rows[0];
+
+                    let target_path = path.resolve(
+                        config.rootPath,
+                        `public/uploads/document/draft-${doc.document_path}`
+                    );
+
+                    const fileData = fs.readFileSync(target_path);
+        
+                    // Simpan tanda tangan digital bersama dengan file PDF
+                    const pdfDoc = await PDFDocument.load(fileData);
+                    const pdfData = await PDFParser(fileData);
+
+                    // Tandatangani data PDF menggunakan kunci privat
+                    const signature = signWithRSA(privateKey, pdfData.text);
+                
+                    pdfDoc.setSubject(signature);
+                    const signedPdfBytesTemp = await pdfDoc.save();
+
+                    const draftPdf = path.resolve(`public/uploads/document/draft-${doc.document_path}`);
+
+                    fs.unlinkSync(draftPdf);
+
+                    fs.writeFileSync(`public/uploads/document/signed-${doc.document_path}`, signedPdfBytesTemp);
+
+                    pool.query("UPDATE documents SET status='signed', signed_by=$1, update_at=CURRENT_DATE, update_by=$1 WHERE document_id=$2 AND created_by=$1", [user.user_id, id], (error, results) => {
+                        if (error) throw error;
+                        
+                        pool.query("INSERT INTO keys (document_id, public_key, private_key, created_by, update_by) VALUES ($1, $2, $3, $4, $4)", [doc.document_id, publicKeyPath, privateKeyPath, user.user_id], (error, results) => {
+                            if (error) throw error;
+
+                            res.status(201).json({
+                                message: "Berhasil menanda tangani dokumen.",
+                            });
+                        });
+
+                    });
+                } else {
+                    res.status(404).json({
+                        message: "Dokumen tidak ditemukan."
+                    });
+                };
+            });
+        } catch (error) {
+            res.status(500).json({
+                message: error.message || `Internal server error!`,
+            });
+        }
     },
 };
