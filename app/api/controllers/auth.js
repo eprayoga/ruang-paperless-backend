@@ -160,11 +160,16 @@ module.exports = {
                                 config.jwtKey
                             );
 
-                            res.status(200).json({
-                                data: {
-                                    token
-                                }
+                            pool.query("UPDATE users SET last_signin=CURRENT_DATE WHERE user_id=$1", [user.user_id], (error, results) => {
+                                if (error) throw error;
+
+                                res.status(200).json({
+                                    data: {
+                                        token
+                                    }
+                                })
                             })
+
                         } else {
                             res.status(403).json({
                                 message: "Password yang anda masukkan salah!",
