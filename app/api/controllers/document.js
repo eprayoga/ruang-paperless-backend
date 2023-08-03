@@ -7,7 +7,7 @@ const PDFParser = require('pdf-parse');
 const qrcode = require("qrcode");
 const config = require("../../../config");
 const pool = require("../../../db");
-const { signWithRSA } = require("../../helper/rsa");
+const { signWithRSA, verifyWithRSA } = require("../../helper/rsa");
 
 module.exports = {
     uploadDocument: async (req, res) => {
@@ -225,4 +225,71 @@ module.exports = {
             });
         }
     },
+
+    documentVerifiy: (req, res) => {
+        try {
+            const { id } = req.params;
+
+            pool.query("SELECT document_path, document_id FROM documents WHERE document_id=$1", [id], async (error, results) => {
+                if (error) throw error;
+
+                if (results.rows.length) {
+                    if (req.file) {
+                        const tmp_path = req.file.path;
+
+                        const fileData = fs.readFileSync(tmp_path);
+    
+                        const pdfDoc = await PDFDocument.load(fileData);
+                        const pdfData = await PDFParser(fileData);
+    
+                        const signature = pdfDoc.getSubject();
+
+                        if (signature) {
+                            pool.query("SELECT public_key FROM keys WHERE document_id=$1", [id], (error, results) => {
+                                if (error) throw error;
+    
+                                const public_key_path = results.rows[0].public_key;
+                                const publicKey_target_path = path.resolve(
+                                    config.rootPath,
+                                    `public/uploads/key/${public_key_path}`
+                                );
+            
+                                const publicKey = fs.readFileSync(publicKey_target_path);
+            
+                                const isSignatureValid = verifyWithRSA(publicKey, pdfData.text, signature);
+            
+                                if (isSignatureValid) {
+                                    res.status(200).json({
+                                        message: "Tanda tangan digital pada file PDF VALID"
+                                    })
+                                } else {
+                                    res.status(404).json({
+                                        message: "Tanda tangan digital pada file PDF TIDAK VALID"
+                                    })
+                                }
+                            })
+                        } else {
+                            res.status(404).json({
+                                message: "Dokumen belum terdapat tanda tangan!"
+                            })
+                        }
+                    } else {
+                        res.status(404).json({
+                            message: "Dokumen perlu di upload!",
+                        })
+                    }
+
+
+                } else {
+                    res.status(404).json({
+                        message: "Dokumen tidak ditemukan."
+                    });
+                };
+            });
+        } catch (error) {
+            res.status(500).json({
+                message: error.message || `Internal server error!`,
+            });
+        }
+    }
 };
