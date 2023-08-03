@@ -67,4 +67,29 @@ module.exports = {
             });
         }
     },
+
+    documentDetail: (req, res) => {
+        try {
+            const { id } = req.params;
+
+            pool.query("SELECT document_id, document_name, signed_by, document_path, documents.created_at, fullname, email FROM documents INNER JOIN users ON documents.created_by=users.user_id WHERE document_id=$1", [id], (error, results) => {
+                if (error) throw error;
+                if (results.rows.length) {
+                    res.status(200).json({
+                        message: "Dokumen ditemukan",
+                        data: results.rows[0],
+                    })
+                } else {
+                    res.status(404).json({
+                        message: "Dokumen tidak ditemukan."
+                    })
+                };
+            });
+        } catch (error) {
+            res.status(500).json({
+                message: error.message || `Internal server error!`,
+            });
+        }
+
+    }
 };
