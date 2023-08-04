@@ -4,6 +4,9 @@ const bcrypt = require("bcrypt");
 const pool = require("../../../db");
 const config = require("../../../config");
 const jwt = require("jsonwebtoken");
+const dotenv = require("dotenv");
+
+dotenv.config();
 
 // For Hashing Password
 const salt = 10;
@@ -64,17 +67,15 @@ module.exports = {
                             };
         
                             // Send to Email
-                            let testAccount = await nodemailer.createTestAccount();
-        
-                            let transporter = nodemailer.createTransport({
-                                host: "smtp.ethereal.email",
-                                port: 587,
-                                secure: false,
+                            let configUser = {
+                                service: 'gmail',
                                 auth: {
-                                    user: testAccount.user, 
-                                    pass: testAccount.pass, 
-                                },
-                            });
+                                    user: process.env.EMAIL,
+                                    pass: process.env.PASSWORD,
+                                }
+                            }
+
+                            let transporter = nodemailer.createTransport(configUser);
         
                             let MailGenerator = new Mailgen({
                                 theme: "default",
@@ -86,6 +87,10 @@ module.exports = {
                         
                             // Email body
                             let response = {
+                                product: {
+                                    logo: 'https://lh3.googleusercontent.com/drive-viewer/AITFw-yHxDSt40zK3K3hbahDR59__6QYn0P36jE0OJy0QVZRMMPsVNsxcKhD5Hny79_N4wRZAA1glueYlJ6wab2Jl6Qy-C-b=s1600',
+                                    logoHeight: '30px'
+                                },
                                 body: {
                                     name : fullname,
                                     intro: "Daftar akun Ruang-Paperless mu telah berhasil, silahkan SignIn dengan password dibawah ini dan gunakan PIN dibawah untuk proses Tanda Tangan Dokumen :",
@@ -108,8 +113,8 @@ module.exports = {
                             let mail = MailGenerator.generate(response)
         
                             let message = {
-                                from: '"Fred Foo 👻" <foo@example.com>',
-                                to: "bar@example.com, baz@example.com",
+                                from: process.env.EMAIL,
+                                to: email,
                                 subject: "Daftar Akun Berhasil, Silahkan Lihat Password", 
                                 html: mail, 
                             }
@@ -128,8 +133,6 @@ module.exports = {
                                             return res.status(201)
                                             .json({ 
                                                 msg: "you should receive an email",
-                                                info : info.messageId,
-                                                preview: nodemailer.getTestMessageUrl(info),
                                             })
                                         }).catch(error => {
                                             return res.status(500).json({ error });
