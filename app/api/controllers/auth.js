@@ -208,4 +208,30 @@ module.exports = {
             });
         }
     },
+
+    pinValidation: (req, res) => {
+        try {
+            const user = req.user;
+            const { pin } = req.body;
+
+            pool.query("SELECT * FROM pins WHERE user_id=$1 AND pin=$2", [user.user_id, pin], (error, results) => {
+                if (error) throw error;
+
+                if (results.rows.length) {
+                    res.status(200).json({
+                        message: "PIN Valid",
+                    })
+                } else {
+                    res.status(404).json({
+                        message: "PIN Tidak Valid",
+                    })
+                }
+            });
+
+        } catch (error) {
+            res.status(500).json({
+                message: error.message || `Internal server error!`,
+            });
+        }
+    }
 }
