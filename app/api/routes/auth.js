@@ -5,6 +5,6 @@ var router = express.Router();
 
 router.post('/register', register);
 router.post('/signin', signIn);
-router.get('/pin/validate', isLoginUser, pinValidation);
+router.post('/pin/validate', isLoginUser, pinValidation);
 
 module.exports = router;
