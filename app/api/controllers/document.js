@@ -58,7 +58,7 @@ module.exports = {
                 }, async (err) => {
                     if (err) throw err;
                     const pages = pdfDoc.getPages();
-                    const firstPage = pages[0];
+                    const firstPage = pages[pages.length - 1];
 
                     let img = fs.readFileSync(qrCodePath);
 
