@@ -225,7 +225,7 @@ module.exports = {
                         message: "PIN Valid",
                     })
                 } else {
-                    res.status(404).json({
+                    res.status(403).json({
                         message: "PIN Tidak Valid",
                     })
                 }
