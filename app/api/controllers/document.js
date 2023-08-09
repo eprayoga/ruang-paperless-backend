@@ -8,6 +8,9 @@ const qrcode = require("qrcode");
 const config = require("../../../config");
 const pool = require("../../../db");
 const { signWithRSA, verifyWithRSA } = require("../../helper/rsa");
+const dotenv = require("dotenv");
+
+dotenv.config();
 
 module.exports = {
     uploadDocument: async (req, res) => {
@@ -53,7 +56,7 @@ module.exports = {
 
                 const pdfDoc = await PDFDocument.load(fileData);
                 let qrCodePath = path.resolve(`public/images/qrcode-${originalNotExt}.png`);
-                qrcode.toFile(qrCodePath, "Ini link qrcode", {
+                qrcode.toFile(qrCodePath, `${process.env.FRONTEND_URL}/document-verify/${document_id}`, {
                     errorCorrectionLevel: "H"
                 }, async (err) => {
                     if (err) throw err;
@@ -80,8 +83,8 @@ module.exports = {
                     let filename = 'draft-' + originalNotExt + "_" + datetime + "." + originalExt;
 
                     fs.writeFileSync(`public/uploads/document/${filename}`, qrPdfBytesTemp);
-                });
 
+                });
                 pool.query("INSERT INTO documents (document_id, document_name, document_path, created_by) VALUES ($1, $2, $3, $4)",
                     [document_id, document_name, filename, req.user.user_id], (error, results) => {
                         if (error) throw error;
@@ -93,7 +96,6 @@ module.exports = {
                         })
                     }
                 );
-
             } else {
                 res.status("404").json({
                     message: "Dokumen perlu di upload!",
