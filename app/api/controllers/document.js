@@ -127,7 +127,8 @@ module.exports = {
     getDocumentDetail: (req, res) => {
         try {
             const { id } = req.params;
-
+            
+            console.log(id);
             pool.query("SELECT document_id, document_name, signed_by, document_path, documents.created_at, fullname, email FROM documents INNER JOIN users ON documents.created_by=users.user_id WHERE document_id=$1", [id], (error, results) => {
                 if (error) throw error;
                 if (results.rows.length) {
