@@ -129,7 +129,7 @@ module.exports = {
             const { id } = req.params;
             
             console.log(id);
-            pool.query("SELECT document_id, created_by, documents.document_name, signed_by, document_path, documents.created_at, fullname, email FROM documents INNER JOIN users ON documents.created_by=users.user_id WHERE document_id=$1", [id], (error, results) => {
+            pool.query("SELECT document_id, documents.created_by, document_name, signed_by, document_path, documents.created_at, fullname, email FROM documents INNER JOIN users ON documents.created_by=users.user_id WHERE document_id=$1", [id], (error, results) => {
                 if (error) throw error;
                 if (results.rows.length) {
                     res.status(200).json({
