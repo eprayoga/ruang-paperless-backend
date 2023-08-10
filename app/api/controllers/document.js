@@ -116,7 +116,7 @@ module.exports = {
             if (status) {
                 console.log(status)
                 if (status === "signed") {
-                    pool.query("SELECT * FROM documents WHERE created_by=$1 AND signed_by<>'NULL'", [user.user_id], (error, results) => {
+                    pool.query("SELECT * FROM documents WHERE created_by=$1 AND status='signed'", [user.user_id], (error, results) => {
                         if (error) throw error;
         
                         res.status(200).json({
@@ -124,7 +124,7 @@ module.exports = {
                         });
                     });
                 } else if(status === "draft") {
-                    pool.query("SELECT * FROM documents WHERE created_by=$1 AND signed_by IS NULL", [user.user_id], (error, results) => {
+                    pool.query("SELECT * FROM documents WHERE created_by=$1 AND status='not-signed'", [user.user_id], (error, results) => {
                         if (error) throw error;
         
                         res.status(200).json({
@@ -137,7 +137,7 @@ module.exports = {
                     });
                 }
             } else {
-                pool.query("SELECT * FROM documents WHERE created_by=$1", [user.user_id], (error, results) => {
+                pool.query("SELECT * FROM documents WHERE created_by=$1 AND status<>'deleted'", [user.user_id], (error, results) => {
                     if (error) throw error;
     
                     res.status(200).json({
@@ -157,7 +157,7 @@ module.exports = {
         try {
             const { id } = req.params;
             
-            pool.query("SELECT document_id, documents.created_by, document_name, signed_by, document_path, documents.created_at, fullname, email FROM documents INNER JOIN users ON documents.created_by=users.user_id WHERE document_id=$1", [id], (error, results) => {
+            pool.query("SELECT document_id, documents.created_by, document_name, signed_by, document_path, documents.created_at, fullname, email FROM documents INNER JOIN users ON documents.created_by=users.user_id WHERE document_id=$1 AND documents.status<>'deleted'", [id], (error, results) => {
                 if (error) throw error;
                 if (results.rows.length) {
                     res.status(200).json({
@@ -320,5 +320,22 @@ module.exports = {
                 message: error.message || `Internal server error!`,
             });
         }
-    }
+    },
+
+    documentDelete: (req, res) => {
+        try {
+            const { id } = req.params;
+            const user = req.user;
+            
+            pool.query("UPDATE documents SET status='deleted' WHERE document_id=$1 AND created_by=$2", [id, user.user_id], (error, results) => {
+                if (error) throw error;
+
+                res.status(201).json({
+                    message: "Sukses menghapus dokumen",
+                })
+            })
+        } catch (error) {
+            
+        }
+    },
 };
