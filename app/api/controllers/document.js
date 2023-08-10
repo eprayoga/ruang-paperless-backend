@@ -111,14 +111,41 @@ module.exports = {
     getAllUserDocument: (req, res) => {
         try {
             const user = req.user;
+            const { status } = req.query;
 
-            pool.query("SELECT * FROM documents WHERE created_by=$1", [user.user_id], (error, results) => {
-                if (error) throw error;
+            if (status) {
+                console.log(status)
+                if (status === "signed") {
+                    pool.query("SELECT * FROM documents WHERE created_by=$1 AND signed_by<>'NULL'", [user.user_id], (error, results) => {
+                        if (error) throw error;
+        
+                        res.status(200).json({
+                            data: results.rows
+                        });
+                    });
+                } else if(status === "draft") {
+                    pool.query("SELECT * FROM documents WHERE created_by=$1 AND signed_by IS NULL", [user.user_id], (error, results) => {
+                        if (error) throw error;
+        
+                        res.status(200).json({
+                            data: results.rows
+                        });
+                    });
+                } else {
+                    res.status(404).json({
+                        message: "Data tidak ditemukan"
+                    });
+                }
+            } else {
+                pool.query("SELECT * FROM documents WHERE created_by=$1", [user.user_id], (error, results) => {
+                    if (error) throw error;
+    
+                    res.status(200).json({
+                        data: results.rows
+                    })
+                });
+            }
 
-                res.status(200).json({
-                    data: results.rows
-                })
-            });
         } catch (error) {
             res.status(500).json({
                 message: error.message || `Internal server error!`,
