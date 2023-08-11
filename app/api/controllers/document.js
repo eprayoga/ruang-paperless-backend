@@ -327,7 +327,7 @@ module.exports = {
             const { id } = req.params;
             const user = req.user;
             
-            pool.query("UPDATE documents SET status='deleted' WHERE document_id=$1 AND created_by=$2", [id, user.user_id], (error, results) => {
+            pool.query("UPDATE documents SET status='deleted', delete_at=CURRENT_DATE WHERE document_id=$1 AND created_by=$2", [id, user.user_id], (error, results) => {
                 if (error) throw error;
 
                 res.status(201).json({
