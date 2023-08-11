@@ -9,6 +9,8 @@ const config = require("../../../config");
 const pool = require("../../../db");
 const { signWithRSA, verifyWithRSA } = require("../../helper/rsa");
 const dotenv = require("dotenv");
+const nodemailer = require("nodemailer");
+const Mailgen = require("mailgen");
 
 dotenv.config();
 
@@ -335,7 +337,109 @@ module.exports = {
                 })
             })
         } catch (error) {
-            
+            res.status(500).json({
+                message: error.message || `Internal server error!`,
+            });   
         }
     },
+
+    documentSend: async (req, res) => {
+        try {
+            const user = req.user;
+            const { id } = req.params;
+            const { email, note } = req.body;
+
+            // Send to Email
+            // let configUser = {
+            //     service: 'gmail',
+            //     auth: {
+            //         user: process.env.EMAIL,
+            //         pass: process.env.PASSWORD,
+            //     }
+            // }
+
+            // let transporter = nodemailer.createTransport(configUser);
+
+            let MailGenerator = new Mailgen({
+                theme: "default",
+                product : {
+                    name: "Ruang-Paperless",
+                    link : 'https://ruang-paperless.com'
+                }
+            })
+            let testAccount = await nodemailer.createTestAccount();
+
+            // create reusable transporter object using the default SMTP transport
+          let transporter = nodemailer.createTransport({
+              host: "smtp.ethereal.email",
+              port: 587,
+              secure: false, // true for 465, false for other ports
+              auth: {
+                  user: testAccount.user, // generated ethereal user
+                  pass: testAccount.pass, // generated ethereal password
+              },
+          });
+        
+            // Email body
+            let response = {
+                product: {
+                    logo: 'https://lh3.googleusercontent.com/drive-viewer/AITFw-yHxDSt40zK3K3hbahDR59__6QYn0P36jE0OJy0QVZRMMPsVNsxcKhD5Hny79_N4wRZAA1glueYlJ6wab2Jl6Qy-C-b=s1600',
+                    logoHeight: '30px'
+                },
+                body: {
+                    name : email,
+                    intro: "Kami ingin memberitahukan bahwa ini adalah dokumen yang kirimkan kepada Anda melalui web ruang-paperless. Berikut adalah deskripsi dari dokumen:",
+                    dictionary: {
+                        "ID User ruang-paperless": user.user_id,
+                        "Email Pengirim": user.email,
+                        "Nama Dokumen": "Nama Dokumen",
+                        "Catatan": note,
+                    },
+                    action: [
+                        {
+                            instructions: "Untuk mengunduh dokumen tersebut, silahkan klik tombol dibawah.",
+                            button: {
+                                color: '#4F709C',
+                                text: 'Unduh Sekarang',
+                                link: ''
+                            }
+                        },
+                        {
+                            button: {
+                                color: '#29A71A',
+                                text: 'Cek Validasi Dokumen',
+                                link: ''
+                            }
+                        },
+                    ],
+                    signature: 'Hormat Kami',
+                }
+            }
+        
+            let mail = MailGenerator.generate(response)
+
+            let message = {
+                from: process.env.EMAIL,
+                to: email,
+                subject: "Daftar Akun Berhasil, Silahkan Lihat Password", 
+                html: mail, 
+            }
+
+            transporter.sendMail(message).then((info) => {
+                return res.status(201)
+                .json({ 
+                    msg: "you should receive an email",
+                    info : info.messageId,
+                    preview: nodemailer.getTestMessageUrl(info)
+                })
+            }).catch(error => {
+                return res.status(500).json({ error });
+            })
+
+        } catch (error) {
+            res.status(500).json({
+                message: error.message || `Internal server error!`,
+            });
+        }
+    }
 };

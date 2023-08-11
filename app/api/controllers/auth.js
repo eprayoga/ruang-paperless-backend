@@ -81,7 +81,7 @@ module.exports = {
                                 theme: "default",
                                 product : {
                                     name: "Ruang-Paperless",
-                                    link : 'https://mailgen.js/'
+                                    link : 'https://ruang-paperless.com'
                                 }
                             })
                         
