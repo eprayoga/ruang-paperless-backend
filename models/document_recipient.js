@@ -3,89 +3,81 @@ const {
   Model
 } = require('sequelize');
 module.exports = (sequelize, DataTypes) => {
-  class Document extends Model {
+  class DocumentRecipient extends Model {
     /**
      * Helper method for defining associations.
      * This method is not a part of Sequelize lifecycle.
      * The `models/index` file will call this method automatically.
      */
     static associate(models) {
-      Document.belongsTo(models.User, {
-        foreignKey: 'signed_by',
-        as: 'signedByUser',
-      });
-      Document.hasOne(models.Key, {
+      DocumentRecipient.belongsTo(models.Document, {
         foreignKey: 'document_id',
-        as: 'keys'
+        as: 'document',
       });
-      Document.hasMany(models.Key, {
-        foreignKey: 'document_id',
-        as: 'documentrecipients'
-      });
-      Document.belongsTo(models.User, {
+      DocumentRecipient.belongsTo(models.User, {
         foreignKey: 'created_by',
-        as: 'document_created_by'
+        as: 'document_recipient_created_by'
       });
-      Document.belongsTo(models.User, {
+      DocumentRecipient.belongsTo(models.User, {
         foreignKey: 'updated_by',
-        as: 'document_updated_by'
+        as: 'document_recipient_updated_by'
       });
-      Document.belongsTo(models.User, {
+      DocumentRecipient.belongsTo(models.User, {
         foreignKey: 'deleted_by',
-        as: 'document_deleted_by'
+        as: 'document_recipient_deleted_by'
       });
     }
   }
-  Document.init({
-    document_id: {
+  DocumentRecipient.init({
+    document_recipient_id: {
       allowNull: false,
       primaryKey: true,
       type: DataTypes.STRING
     },
-    document_name: {
+    document_id: {
       allowNull: false,
       type: DataTypes.STRING
+    },
+    email: {
+      allowNull: false,
+      type: DataTypes.STRING
+    },
+    note: {
+      type: DataTypes.TEXT
     },
     status: {
-      type: DataTypes.ENUM('signed', 'not-signed', 'deleted'),
-      defaultValue: 'not-signed'
-    },
-    signed_by: {
-      type: DataTypes.STRING,
-    },
-    document_path: {
-      allowNull: false,
-      type: DataTypes.STRING
+      type: DataTypes.ENUM('active', 'deleted'),
+      defaultValue: 'active'
     },
     created_at: {
       allowNull: false,
       type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
+      defaultValue: sequelize.fn('now')
     },
     created_by: {
       allowNull: false,
-      type: DataTypes.STRING,
+      type: DataTypes.STRING
     },
     updated_at: {
       allowNull: false,
       type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
+      defaultValue: sequelize.fn('now')
     },
     updated_by: {
       allowNull: false,
-      type: DataTypes.STRING,
+      type: DataTypes.STRING
     },
     deleted_at: {
       type: DataTypes.DATE
     },
     deleted_by: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING
     },
   }, {
     sequelize,
-    modelName: 'Document',
-    tableName: 'documents',
+    modelName: 'DocumentRecipient',
+    tableName: 'document_recipients',
     timestamps: false
   });
-  return Document;
+  return DocumentRecipient;
 };

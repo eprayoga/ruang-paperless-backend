@@ -12,7 +12,7 @@ const Mailgen = require("mailgen");
 const { Op } = require('sequelize');
 const Sequelize = require('sequelize');
 
-const { User, Document, Key } = require("../../../models");
+const { User, Document, Key, DocumentRecipient } = require("../../../models");
 
 dotenv.config();
 
@@ -426,93 +426,130 @@ module.exports = {
             const user = req.user;
             const { id } = req.params;
             const { email, note } = req.body;
-
-            // Send to Email
-            // let configUser = {
-            //     service: 'gmail',
-            //     auth: {
-            //         user: process.env.EMAIL,
-            //         pass: process.env.PASSWORD,
-            //     }
-            // }
-
-            // let transporter = nodemailer.createTransport(configUser);
-
-            let MailGenerator = new Mailgen({
-                theme: "default",
-                product : {
-                    name: "Ruang-Paperless",
-                    link : 'https://ruang-paperless.com'
-                }
-            })
-            let testAccount = await nodemailer.createTestAccount();
-
-            // create reusable transporter object using the default SMTP transport
-          let transporter = nodemailer.createTransport({
-              host: "smtp.ethereal.email",
-              port: 587,
-              secure: false, // true for 465, false for other ports
-              auth: {
-                  user: testAccount.user, // generated ethereal user
-                  pass: testAccount.pass, // generated ethereal password
-              },
-          });
-        
-            // Email body
-            let response = {
-                product: {
-                    logo: 'https://lh3.googleusercontent.com/drive-viewer/AITFw-yHxDSt40zK3K3hbahDR59__6QYn0P36jE0OJy0QVZRMMPsVNsxcKhD5Hny79_N4wRZAA1glueYlJ6wab2Jl6Qy-C-b=s1600',
-                    logoHeight: '30px'
+            const baseUrl = req.get('host');
+            
+            const document = await Document.findOne({
+                attributes: ['document_id', 'created_by', 'document_name', 'signed_by', 'document_path', 'created_at'],
+                where: {
+                    document_id: id,
+                    status: {
+                        [Op.not]: 'deleted'
+                    }
                 },
-                body: {
-                    name : email,
-                    intro: "Kami ingin memberitahukan bahwa ini adalah dokumen yang kirimkan kepada Anda melalui web ruang-paperless. Berikut adalah deskripsi dari dokumen:",
-                    dictionary: {
-                        "ID User ruang-paperless": user.user_id,
-                        "Email Pengirim": user.email,
-                        "Nama Dokumen": "Nama Dokumen",
-                        "Catatan": note,
-                    },
-                    action: [
-                        {
-                            instructions: "Untuk mengunduh dokumen tersebut, silahkan klik tombol dibawah.",
-                            button: {
-                                color: '#4F709C',
-                                text: 'Unduh Sekarang',
-                                link: ''
-                            }
-                        },
-                        {
-                            button: {
-                                color: '#29A71A',
-                                text: 'Cek Validasi Dokumen',
-                                link: ''
-                            }
-                        },
-                    ],
-                    signature: 'Hormat Kami',
+                include: [
+                    {
+                        model: User,
+                        as: "document_created_by",
+                        attributes: ['fullname', 'email']
+                    }
+                ]
+            });
+
+            if (document) {
+                const downloadLink = `${baseUrl}/uploads/document/signed-${document.document_path}`;
+                const verifyLink = `${process.env.FRONTEND_URL}/document-verify/${document.document_id}`;
+
+                // Generate recipient_id
+                var length = 16;
+                charset =  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz";
+                let recipient_id = "";
+                for (var i = 0, n = charset.length; i < length; ++i) {
+                    recipient_id += charset.charAt(Math.floor(Math.random() * n));
+                };
+
+                // Send to Email
+                let configUser = {
+                    service: 'gmail',
+                    auth: {
+                        user: process.env.EMAIL,
+                        pass: process.env.PASSWORD,
+                    }
                 }
-            }
-        
-            let mail = MailGenerator.generate(response)
-
-            let message = {
-                from: process.env.EMAIL,
-                to: email,
-                subject: "Daftar Akun Berhasil, Silahkan Lihat Password", 
-                html: mail, 
-            }
-
-            transporter.sendMail(message).then((info) => {
-                return res.status(201)
-                .json({ 
-                    msg: "you should receive an email",
-                    info : info.messageId,
-                    preview: nodemailer.getTestMessageUrl(info)
+    
+                let transporter = nodemailer.createTransport(configUser);
+    
+                let MailGenerator = new Mailgen({
+                    theme: "default",
+                    product : {
+                        name: "Ruang-Paperless",
+                        link : 'https://ruang-paperless.com'
+                    }
                 })
-            }).catch(error => {
-                return res.status(500).json({ error });
-            })
+    
+                // Email body
+                let response = {
+                    product: {
+                        name: 'Ruang-Paperless',
+                        link: 'https://ruang-paperless.com',
+                        logo: 'https://lh3.googleusercontent.com/drive-viewer/AITFw-yHxDSt40zK3K3hbahDR59__6QYn0P36jE0OJy0QVZRMMPsVNsxcKhD5Hny79_N4wRZAA1glueYlJ6wab2Jl6Qy-C-b=s1600',
+                        logoHeight: '80px'
+                    },
+                    body: {
+                        name : email,
+                        intro: "Kami ingin memberitahukan bahwa ini adalah dokumen yang dikirimkan kepada Anda melalui web ruang-paperless. Berikut adalah deskripsi dari dokumen:",
+                        dictionary: {
+                            "Kode serial pengiriman": recipient_id,
+                            "ID user ruang-paperless pengirm": user.user_id,
+                            "Email pengirim": user.email,
+                            "Nama dokumen": document.document_name,
+                            "Catatan": note,
+                        },
+                        action: [
+                            {
+                                instructions: "Untuk mengunduh dokumen tersebut, silahkan klik tombol dibawah.",
+                                button: {
+                                    color: '#4F709C',
+                                    text: 'Unduh Sekarang',
+                                    link: downloadLink,
+                                }
+                            },
+                            {
+                                button: {
+                                    color: '#29A71A',
+                                    text: 'Cek Validasi Dokumen',
+                                    link: verifyLink,
+                                }
+                            },
+                        ],
+                        signature: 'Hormat Kami',
+                    }
+                }
+            
+                let mail = MailGenerator.generate(response)
+    
+                let message = {
+                    from: process.env.EMAIL,
+                    to: email,
+                    subject: `${user.fullname} mengirimkan Dokumen tertanda tangan digital ruang-paperless kepada anda, silahkan cek`, 
+                    html: mail, 
+                }
+    
+                transporter.sendMail(message).then(async (info) => {
+                    const data = {
+                        document_recipient_id: recipient_id,
+                        document_id: id,
+                        email,
+                        note,
+                        created_by: user.user_id,
+                        updated_by: user.user_id,
+                    };
+
+                    await DocumentRecipient.create(data)
+
+                    return res.status(201)
+                    .json({ 
+                        message: "Dokumen berhasil terkirim",
+                    })
+                }).catch(error => {
+                    return res.status(500).json({ error });
+                })
+            } else {
+                res.status(404).json({
+                    message: "Dokumen tidak ditemukan."
+                })
+            }
+
+
 
         } catch (error) {
             res.status(500).json({
