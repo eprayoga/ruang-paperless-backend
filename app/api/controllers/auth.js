@@ -82,27 +82,29 @@ module.exports = {
                     // Email body
                     let response = {
                         product: {
+                            name: 'Ruang-Paperless',
+                            link: 'https://ruang-paperless.com',
                             logo: 'https://lh3.googleusercontent.com/drive-viewer/AITFw-yHxDSt40zK3K3hbahDR59__6QYn0P36jE0OJy0QVZRMMPsVNsxcKhD5Hny79_N4wRZAA1glueYlJ6wab2Jl6Qy-C-b=s1600',
-                            logoHeight: '30px'
+                            logoHeight: '80px'
                         },
                         body: {
-                            name : payload.fullname,
-                            intro: "Daftar akun Ruang-Paperless mu telah berhasil, silahkan SignIn dengan password dibawah ini dan gunakan PIN dibawah untuk proses Tanda Tangan Dokumen :",
+                            name: payload.fullname,
+                            intro: "Selamat datang di Ruang-Paperless! Daftar akun Anda telah berhasil. Silakan masuk dengan menggunakan password di bawah ini, dan gunakan PIN yang ada untuk proses tanda tangan dokumen:",
                             dictionary: {
                                 Password: password,
-                                PIN: genPin,
+                                PIN: genPin
                             },
                             action: {
-                                instructions: "Klik tombol dibawah untuk melanjutkan ke proses SignIn.",
+                                instructions: "Klik tombol di bawah untuk melanjutkan ke proses masuk.",
                                 button: {
-                                    color: '#4F709C',
-                                    text: 'Login Sekarang',
-                                    link: 'https://mailgen.js/confirm?s=d9729feb74992cc3482b350163a1a010'
+                                    color: '#1E90FF',
+                                    text: 'Masuk Sekarang',
+                                    link: 'https://ruang-paperless.com/signin'
                                 }
                             },
                             signature: 'Hormat Kami',
                         }
-                    }
+                    };
                 
                     let mail = MailGenerator.generate(response)
 
