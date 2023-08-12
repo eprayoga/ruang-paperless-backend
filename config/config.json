@@ -1,0 +1,23 @@
+{
+  "development": {
+    "username": "postgres",
+    "password": "yoga95",
+    "database": "ruang_paperless_development",
+    "host": "127.0.0.1",
+    "dialect": "postgres"
+  },
+  "test": {
+    "username": "postgres",
+    "password": "yoga95",
+    "database": "ruang_paperless_test",
+    "host": "127.0.0.1",
+    "dialect": "postgres"
+  },
+  "production": {
+    "username": "root",
+    "password": null,
+    "database": "ruang_paperless_production",
+    "host": "127.0.0.1",
+    "dialect": "postgres"
+  }
+}

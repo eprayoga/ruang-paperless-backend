@@ -1,10 +1,12 @@
 const nodemailer = require("nodemailer");
 const Mailgen = require("mailgen");
 const bcrypt = require("bcrypt");
-const pool = require("../../../db");
 const config = require("../../../config");
 const jwt = require("jsonwebtoken");
 const dotenv = require("dotenv");
+
+// Model
+const { User, Pin } = require("../../../models");
 
 dotenv.config();
 
@@ -14,136 +16,144 @@ const salt = 10;
 module.exports = {
     register: async (req, res, next) => {
         try {
-            const { nik, fullname, email, birth_date, phone_number } = req.body;
+            let payload = req.body;
 
-            pool.query("SELECT s FROM users s WHERE s.nik = $1", [nik], (error, results) => {
-                if (error) throw error;
-                if (results.rows.length) {
-                    return res.status(422).json({
-                        message: "NIK sudah digunakan sebelumnya!"
-                    })
-                } else {
-                    pool.query("SELECT s FROM users s WHERE s.email = $1", [email], async (error, results) => {
-                        if (error) throw error;
-                        if (results.rows.length) {
-                            return res.status(422).json({
-                                message: "Email yang digunakan sudah terdaftar!"
-                            })
-                        } else {
-                            // Generate user_id
-                            let getUser;
-                            do { 
-                                charset =  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-                                user_id = fullname.charAt(0);
-                                for (var i = 0, n = charset.length; i < 8; ++i) {
-                                    user_id += charset.charAt(Math.floor(Math.random() * n));
-                                };
-                                
-                                getUser = await pool.query("SELECT s FROM users s WHERE s.user_id = $1", [user_id])
-                            } while (getUser.length);
-        
-                            // Generate random password
-                            var length = 15;
-                            charset =  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz";
-                            password = "";
-                            for (var i = 0, n = charset.length; i < length; ++i) {
-                                password += charset.charAt(Math.floor(Math.random() * n));
-                            };
+            const checkNIK = await User.findOne({ where: { nik: payload.nik } });
+ 
+            if (checkNIK === null) {
+                const checkEmail = await User.findOne({ where: { email: payload.email } });
 
-                            // Generate random pin_id
-                            var length = 16;
-                            charset =  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz";
-                            pin_id = "";
-                            for (var i = 0, n = charset.length; i < length; ++i) {
-                                pin_id += charset.charAt(Math.floor(Math.random() * n));
-                            };
-
-                            // Generate random pin
-                            var length = 6;
-                            charset =  "0123456789";
-                            pin = "";
-                            for (var i = 0, n = charset.length; i < length; ++i) {
-                                pin += charset.charAt(Math.floor(Math.random() * n));
-                            };
-        
-                            // Send to Email
-                            let configUser = {
-                                service: 'gmail',
-                                auth: {
-                                    user: process.env.EMAIL,
-                                    pass: process.env.PASSWORD,
-                                }
-                            }
-
-                            let transporter = nodemailer.createTransport(configUser);
-        
-                            let MailGenerator = new Mailgen({
-                                theme: "default",
-                                product : {
-                                    name: "Ruang-Paperless",
-                                    link : 'https://ruang-paperless.com'
-                                }
-                            })
+                if (checkEmail === null) {
+                    // Generate user_id
+                    let getUser;
+                    do { 
+                        charset =  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+                        user_id = payload.fullname.charAt(0);
+                        for (var i = 0, n = charset.length; i < 8; ++i) {
+                            user_id += charset.charAt(Math.floor(Math.random() * n));
+                        };
                         
-                            // Email body
-                            let response = {
-                                product: {
-                                    logo: 'https://lh3.googleusercontent.com/drive-viewer/AITFw-yHxDSt40zK3K3hbahDR59__6QYn0P36jE0OJy0QVZRMMPsVNsxcKhD5Hny79_N4wRZAA1glueYlJ6wab2Jl6Qy-C-b=s1600',
-                                    logoHeight: '30px'
-                                },
-                                body: {
-                                    name : fullname,
-                                    intro: "Daftar akun Ruang-Paperless mu telah berhasil, silahkan SignIn dengan password dibawah ini dan gunakan PIN dibawah untuk proses Tanda Tangan Dokumen :",
-                                    dictionary: {
-                                        Password: password,
-                                        PIN: pin,
-                                    },
-                                    action: {
-                                        instructions: "Klik tombol dibawah untuk melanjutkan ke proses SignIn.",
-                                        button: {
-                                            color: '#4F709C',
-                                            text: 'Login Sekarang',
-                                            link: 'https://mailgen.js/confirm?s=d9729feb74992cc3482b350163a1a010'
-                                        }
-                                    },
-                                    signature: 'Hormat Kami',
-                                }
-                            }
-                        
-                            let mail = MailGenerator.generate(response)
-        
-                            let message = {
-                                from: process.env.EMAIL,
-                                to: email,
-                                subject: "Daftar Akun Berhasil, Silahkan Lihat Password", 
-                                html: mail, 
-                            }
-        
-                            // Password Encrypted
-                            bcrypt.hash(password, salt, async (err, hash) => {
-                                if (err) throw error;
+                        getUser = await User.findOne({ where: { user_id } });
+                    } while (getUser !== null);
 
-                                pool.query("INSERT INTO users (user_id, nik, fullname, email, birth_date, phone_number, password) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *", [user_id, nik, fullname, email, birth_date, phone_number, hash], (error, results) => {
-                                    if (error) throw error;
+                    // Generate random password
+                    var length = 15;
+                    charset =  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz";
+                    password = "";
+                    for (var i = 0, n = charset.length; i < length; ++i) {
+                        password += charset.charAt(Math.floor(Math.random() * n));
+                    };
 
-                                    pool.query("INSERT INTO pins (pin_id, pin, user_id, created_by) VALUES ($1, $2, $3, $4)", [pin_id, pin, user_id, user_id], (error, results) => {
-                                        if (err) throw error;
+                    // Generate random pin_id
+                    var length = 16;
+                    charset =  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz";
+                    pin_id = "";
+                    for (var i = 0, n = charset.length; i < length; ++i) {
+                        pin_id += charset.charAt(Math.floor(Math.random() * n));
+                    };
 
-                                        transporter.sendMail(message).then((info) => {
-                                            return res.status(201)
-                                            .json({ 
-                                                msg: "you should receive an email",
-                                            })
-                                        }).catch(error => {
-                                            return res.status(500).json({ error });
-                                        })
-                                    });
-                                });
-                            })
+                    // Generate random pin
+                    var length = 6;
+                    charset =  "0123456789";
+                    genPin = "";
+                    for (var i = 0, n = charset.length; i < length; ++i) {
+                        genPin += charset.charAt(Math.floor(Math.random() * n));
+                    };
+
+                    // Send to Email
+                    let configUser = {
+                        service: 'gmail',
+                        auth: {
+                            user: process.env.EMAIL,
+                            pass: process.env.PASSWORD,
                         }
+                    }
+
+                    let transporter = nodemailer.createTransport(configUser);
+
+                    let MailGenerator = new Mailgen({
+                        theme: "default",
+                        product : {
+                            name: "Ruang-Paperless",
+                            link : 'https://ruang-paperless.com'
+                        }
+                    })
+                
+                    // Email body
+                    let response = {
+                        product: {
+                            logo: 'https://lh3.googleusercontent.com/drive-viewer/AITFw-yHxDSt40zK3K3hbahDR59__6QYn0P36jE0OJy0QVZRMMPsVNsxcKhD5Hny79_N4wRZAA1glueYlJ6wab2Jl6Qy-C-b=s1600',
+                            logoHeight: '30px'
+                        },
+                        body: {
+                            name : payload.fullname,
+                            intro: "Daftar akun Ruang-Paperless mu telah berhasil, silahkan SignIn dengan password dibawah ini dan gunakan PIN dibawah untuk proses Tanda Tangan Dokumen :",
+                            dictionary: {
+                                Password: password,
+                                PIN: genPin,
+                            },
+                            action: {
+                                instructions: "Klik tombol dibawah untuk melanjutkan ke proses SignIn.",
+                                button: {
+                                    color: '#4F709C',
+                                    text: 'Login Sekarang',
+                                    link: 'https://mailgen.js/confirm?s=d9729feb74992cc3482b350163a1a010'
+                                }
+                            },
+                            signature: 'Hormat Kami',
+                        }
+                    }
+                
+                    let mail = MailGenerator.generate(response)
+
+                    let message = {
+                        from: process.env.EMAIL,
+                        to: payload.email,
+                        subject: "Daftar Akun Berhasil, Silahkan Lihat Password", 
+                        html: mail, 
+                    }
+
+                    // Password Encrypted
+                    bcrypt.hash(password, salt, async (err, hash) => {
+                        if (err) throw error;
+
+                        payload = {
+                            ...payload,
+                            user_id,
+                            password: hash,
+                            quota: 10,
+                            created_by: user_id,
+                            updated_by: user_id,
+                        }
+
+                        bcrypt.hash(genPin, salt, async (err, hash) => {
+                            if (err) throw error;
+
+                            await User.create(payload);
+    
+                            await Pin.create({ pin_id, pin: hash, user_id, created_by: user_id, updated_by: user_id })
+    
+                            transporter.sendMail(message).then((info) => {
+                                return res.status(201)
+                                .json({ 
+                                    message: "Daftar berhasil, Email pendaftaran telah terkirim.",
+                                })
+                            }).catch(error => {
+                                return res.status(500).json({ error });
+                            });
+                        });
                     });
+                } else {
+                    return res.status(422).json({
+                        message: "Email yang digunakan sudah terdaftar!"
+                    })
                 }
-            })  
+            } else {
+                return res.status(422).json({
+                    message: "NIK sudah digunakan sebelumnya!"
+                })
+            }
+
         } catch (err) {
             if (err && err.name === "ValidationError") {
                 return res.status(422).json({
@@ -156,55 +166,53 @@ module.exports = {
         };
     },
 
-    signIn: (req, res) => {
+    signIn: async (req, res) => {
         try {
             const {email, password} = req.body;
-    
-            pool.query("SELECT * FROM users WHERE email = $1", [email], async (error, results) => {
-                if (error) throw error;
-                if (results.rows.length) {
-                    const user = results.rows[0];
 
-                    bcrypt.compare(password, user.password, (error, response) => {
-                        if (error) throw error;
-                        if (response) {
-                            const token = jwt.sign(
-                                {
-                                    user: {
-                                        user_id: user.user_id,
-                                        nik: user.nik,
-                                        fullname: user.fullname,
-                                        email: user.email,
-                                        birth_date: user.birth_date,
-                                        phone_number: user.phone_number,
-                                        quota: user.quota,
-                                    }
-                                },
-                                config.jwtKey
-                            );
+            const getUser = await User.findOne({ where: { email } });
 
-                            pool.query("UPDATE users SET last_signin=CURRENT_DATE, status='verified' WHERE user_id=$1", [user.user_id], (error, results) => {
-                                if (error) throw error;
+            if (getUser !== null) {
+                bcrypt.compare(password, getUser.password, async (error, response) => {
+                    if (response) {
+                        const token = jwt.sign(
+                            {
+                                user: {
+                                    user_id: getUser.user_id,
+                                    nik: getUser.nik,
+                                    fullname: getUser.fullname,
+                                    email: getUser.email,
+                                    birth_date: getUser.birth_date,
+                                    phone_number: getUser.phone_number,
+                                    quota: getUser.quota,
+                                }
+                            },
+                            config.jwtKey
+                        );
 
-                                res.status(200).json({
-                                    data: {
-                                        token
-                                    }
-                                })
-                            })
+                        await User.update({ last_signin: new Date(), status: "verified", update_at: new Date }, {
+                            where: {
+                                user_id: getUser.user_id,
+                            }
+                        })
 
-                        } else {
-                            res.status(403).json({
-                                message: "Password yang anda masukkan salah!",
-                            })
-                        }
-                    })
-                } else {
-                    res.status(403).json({
-                        message: "email yang anda masukkan belum terdaftar.",
-                    });
-                }
-            });
+                        res.status(200).json({
+                            data: {
+                                token
+                            }
+                        })
+
+                    } else {
+                        res.status(403).json({
+                            message: "Password yang anda masukkan salah!",
+                        })
+                    }
+                })
+            } else {
+                res.status(403).json({
+                    message: "email yang anda masukkan belum terdaftar.",
+                });
+            }
         } catch (error) {
             res.status(500).json({
                 message: error.message || `Internal server error!`,
@@ -212,25 +220,24 @@ module.exports = {
         }
     },
 
-    pinValidation: (req, res) => {
+    pinValidation: async (req, res) => {
         try {
             const user = req.user;
             const { pin } = req.body;
 
-            pool.query("SELECT * FROM pins WHERE user_id=$1 AND pin=$2", [user.user_id, pin], (error, results) => {
-                if (error) throw error;
+            getPin = await Pin.findOne({ where: { user_id: user.user_id } });
 
-                if (results.rows.length) {
+            bcrypt.compare(pin, getPin.pin, async (error, response) => {
+                if (response) {
                     res.status(200).json({
                         message: "PIN Valid",
-                    })
+                    });
                 } else {
                     res.status(403).json({
                         message: "PIN Tidak Valid",
-                    })
-                }
+                    });
+                };
             });
-
         } catch (error) {
             res.status(500).json({
                 message: error.message || `Internal server error!`,

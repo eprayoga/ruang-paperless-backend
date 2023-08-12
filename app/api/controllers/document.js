@@ -1,16 +1,18 @@
 const fs = require("fs");
-const fsPromise = require("fs/promises");
 const path = require("path");
 const crypto = require('crypto');
 const { PDFDocument } = require('pdf-lib');
 const PDFParser = require('pdf-parse');
 const qrcode = require("qrcode");
 const config = require("../../../config");
-const pool = require("../../../db");
 const { signWithRSA, verifyWithRSA } = require("../../helper/rsa");
 const dotenv = require("dotenv");
 const nodemailer = require("nodemailer");
 const Mailgen = require("mailgen");
+const { Op } = require('sequelize');
+const Sequelize = require('sequelize');
+
+const { User, Document, Key } = require("../../../models");
 
 dotenv.config();
 
@@ -19,6 +21,7 @@ module.exports = {
         try {
             if (req.file) {
                 const { document_name } = req.body;
+                const user = req.user;
 
                 // Generate document_id
                 const length = 16;
@@ -87,17 +90,24 @@ module.exports = {
                     fs.writeFileSync(`public/uploads/document/${filename}`, qrPdfBytesTemp);
 
                 });
-                pool.query("INSERT INTO documents (document_id, document_name, document_path, created_by) VALUES ($1, $2, $3, $4)",
-                    [document_id, document_name, filename, req.user.user_id], (error, results) => {
-                        if (error) throw error;
-                        res.status(201).json({
-                            message: "Sukses menyimpan dokumen.",
-                            data: {
-                                document_id,
-                            }
-                        })
+
+                const data = {
+                    document_id,
+                    document_name,
+                    document_path: filename,
+                    created_by: user.user_id,
+                    updated_by: user.user_id,
+                }
+
+                await Document.create(data);
+
+                res.status(201).json({
+                    message: "Sukses menyimpan dokumen.",
+                    data: {
+                        document_id,
                     }
-                );
+                })
+
             } else {
                 res.status("404").json({
                     message: "Dokumen perlu di upload!",
@@ -110,7 +120,7 @@ module.exports = {
         }
     },
 
-    getAllUserDocument: (req, res) => {
+    getAllUserDocument: async (req, res) => {
         try {
             const user = req.user;
             const { status } = req.query;
@@ -118,36 +128,47 @@ module.exports = {
             if (status) {
                 console.log(status)
                 if (status === "signed") {
-                    pool.query("SELECT * FROM documents WHERE created_by=$1 AND status='signed'", [user.user_id], (error, results) => {
-                        if (error) throw error;
-        
-                        res.status(200).json({
-                            data: results.rows
-                        });
+                    const documents = await Document.findAll({
+                        where: {
+                            created_by: user.user_id,
+                            status,
+                        }
+                    });
+                    
+                    res.status(200).json({
+                        data: documents
                     });
                 } else if(status === "draft") {
-                    pool.query("SELECT * FROM documents WHERE created_by=$1 AND status='not-signed'", [user.user_id], (error, results) => {
-                        if (error) throw error;
-        
-                        res.status(200).json({
-                            data: results.rows
-                        });
+                    const documents = await Document.findAll({
+                        where: {
+                            created_by: user.user_id,
+                            status: 'not-signed'
+                        }
                     });
+
+                    res.status(200).json({
+                        data: documents
+                    });
+
                 } else {
                     res.status(404).json({
                         message: "Data tidak ditemukan"
                     });
                 }
             } else {
-                pool.query("SELECT * FROM documents WHERE created_by=$1 AND status<>'deleted'", [user.user_id], (error, results) => {
-                    if (error) throw error;
-    
-                    res.status(200).json({
-                        data: results.rows
-                    })
+                const documents = await Document.findAll({
+                    where: {
+                        created_by: user.user_id,
+                        status: {
+                            [Op.not]: 'deleted'
+                        }
+                    }
                 });
-            }
 
+                res.status(200).json({
+                    data: documents
+                });
+            };
         } catch (error) {
             res.status(500).json({
                 message: error.message || `Internal server error!`,
@@ -155,23 +176,37 @@ module.exports = {
         }
     },
 
-    getDocumentDetail: (req, res) => {
+    getDocumentDetail: async (req, res) => {
         try {
             const { id } = req.params;
-            
-            pool.query("SELECT document_id, documents.created_by, document_name, signed_by, document_path, documents.created_at, fullname, email FROM documents INNER JOIN users ON documents.created_by=users.user_id WHERE document_id=$1 AND documents.status<>'deleted'", [id], (error, results) => {
-                if (error) throw error;
-                if (results.rows.length) {
-                    res.status(200).json({
-                        message: "Dokumen ditemukan",
-                        data: results.rows[0],
-                    });
-                } else {
-                    res.status(404).json({
-                        message: "Dokumen tidak ditemukan."
-                    });
-                };
+
+            const document = await Document.findOne({
+                attributes: ['document_id', 'created_by', 'document_name', 'signed_by', 'document_path', 'created_at'],
+                where: {
+                    document_id: id,
+                    status: {
+                        [Op.not]: 'deleted'
+                    }
+                },
+                include: [
+                    {
+                        model: User,
+                        as: "document_created_by",
+                        attributes: ['fullname', 'email']
+                    }
+                ]
             });
+
+            if (document !== null) {
+                res.status(200).json({
+                    message: "Dokumen ditemukan",
+                    data: document,
+                });
+            } else {
+                res.status(404).json({
+                    message: "Dokumen tidak ditemukan."
+                });
+            }
         } catch (error) {
             res.status(500).json({
                 message: error.message || `Internal server error!`,
@@ -179,7 +214,7 @@ module.exports = {
         };
     },
 
-    documentSign: (req, res) => {
+    documentSign: async (req, res) => {
         try {
             const { id } = req.params;
             const user = req.user;
@@ -203,53 +238,71 @@ module.exports = {
             fs.writeFileSync(`public/uploads/key/${privateKeyPath}`, privateKey);
             fs.writeFileSync(`public/uploads/key/${publicKeyPath}`, publicKey);
 
-            pool.query("SELECT document_path, document_id FROM documents WHERE document_id=$1 AND created_by=$2", [id, user.user_id], async (error, results) => {
-                if (error) throw error;
+            const document = await Document.findOne({
+                attributes: ['document_path', 'document_id'],
+                where: {
+                    document_id: id,
+                    created_by: user.user_id,
+                }
+            })
 
-                if (results.rows.length) {
-                    const doc = results.rows[0];
+            if (document !== null) {
 
-                    let target_path = path.resolve(
-                        config.rootPath,
-                        `public/uploads/document/draft-${doc.document_path}`
-                    );
+                const doc = document;
+    
+                let target_path = path.resolve(
+                    config.rootPath,
+                    `public/uploads/document/draft-${doc.document_path}`
+                );
+    
+                const fileData = fs.readFileSync(target_path);
+    
+                // Simpan tanda tangan digital bersama dengan file PDF
+                const pdfDoc = await PDFDocument.load(fileData);
+                const pdfData = await PDFParser(fileData);
+    
+                // Tandatangani data PDF menggunakan kunci privat
+                const signature = signWithRSA(privateKey, pdfData.text);
+            
+                pdfDoc.setSubject(signature);
+                const signedPdfBytesTemp = await pdfDoc.save();
+    
+                const draftPdf = path.resolve(`public/uploads/document/draft-${doc.document_path}`);
+    
+                fs.unlinkSync(draftPdf);
+    
+                fs.writeFileSync(`public/uploads/document/signed-${doc.document_path}`, signedPdfBytesTemp);
 
-                    const fileData = fs.readFileSync(target_path);
-        
-                    // Simpan tanda tangan digital bersama dengan file PDF
-                    const pdfDoc = await PDFDocument.load(fileData);
-                    const pdfData = await PDFParser(fileData);
+                await Document.update(
+                    { status: 'signed', signed_by: user.user_id, updated_at: Sequelize.literal('CURRENT_DATE'), updated_by: user.user_id },
+                    {
+                        where: {
+                            document_id: id,
+                            created_by: user.user_id
+                        },
+                    }
+                );
 
-                    // Tandatangani data PDF menggunakan kunci privat
-                    const signature = signWithRSA(privateKey, pdfData.text);
-                
-                    pdfDoc.setSubject(signature);
-                    const signedPdfBytesTemp = await pdfDoc.save();
+                await Key.create(
+                    {
+                        document_id: doc.document_id,
+                        public_key: publicKeyPath,
+                        private_key: privateKeyPath,
+                        created_by: user.user_id,
+                        updated_by: user.user_id
+                    },
+                );
 
-                    const draftPdf = path.resolve(`public/uploads/document/draft-${doc.document_path}`);
+                res.status(201).json({
+                    message: "Berhasil menanda tangani dokumen.",
+                });
+    
+            } else {
+                res.status(404).json({
+                    message: "Dokumen tidak ditemukan."
+                });
+            }
 
-                    fs.unlinkSync(draftPdf);
-
-                    fs.writeFileSync(`public/uploads/document/signed-${doc.document_path}`, signedPdfBytesTemp);
-
-                    pool.query("UPDATE documents SET status='signed', signed_by=$1, update_at=CURRENT_DATE, update_by=$1 WHERE document_id=$2 AND created_by=$1", [user.user_id, id], (error, results) => {
-                        if (error) throw error;
-                        
-                        pool.query("INSERT INTO keys (document_id, public_key, private_key, created_by, update_by) VALUES ($1, $2, $3, $4, $4)", [doc.document_id, publicKeyPath, privateKeyPath, user.user_id], (error, results) => {
-                            if (error) throw error;
-
-                            res.status(201).json({
-                                message: "Berhasil menanda tangani dokumen.",
-                            });
-                        });
-
-                    });
-                } else {
-                    res.status(404).json({
-                        message: "Dokumen tidak ditemukan."
-                    });
-                };
-            });
         } catch (error) {
             res.status(500).json({
                 message: error.message || `Internal server error!`,
@@ -257,85 +310,110 @@ module.exports = {
         }
     },
 
-    documentVerifiy: (req, res) => {
+    documentVerify : async (req, res) => {
         try {
             const { id } = req.params;
-
-            pool.query("SELECT document_path, document_id FROM documents WHERE document_id=$1", [id], async (error, results) => {
-                if (error) throw error;
-
-                if (results.rows.length) {
-                    if (req.file) {
-                        const tmp_path = req.file.path;
-
-                        const fileData = fs.readFileSync(tmp_path);
     
-                        const pdfDoc = await PDFDocument.load(fileData);
-                        const pdfData = await PDFParser(fileData);
+            const document = await Document.findOne({
+                attributes: ['document_id', 'document_path'],
+                where: {
+                    document_id: id
+                }
+            });
     
-                        const signature = pdfDoc.getSubject();
-
-                        if (signature) {
-                            pool.query("SELECT public_key FROM keys WHERE document_id=$1", [id], (error, results) => {
-                                if (error) throw error;
+            if (document) {
+                if (req.file) {
+                    const tmp_path = req.file.path;
     
-                                const public_key_path = results.rows[0].public_key;
-                                const publicKey_target_path = path.resolve(
-                                    config.rootPath,
-                                    `public/uploads/key/${public_key_path}`
-                                );
-            
-                                const publicKey = fs.readFileSync(publicKey_target_path);
-            
-                                const isSignatureValid = verifyWithRSA(publicKey, pdfData.text, signature);
-            
-                                if (isSignatureValid) {
-                                    res.status(200).json({
-                                        message: "Tanda tangan digital pada file PDF VALID"
-                                    })
-                                } else {
-                                    res.status(404).json({
-                                        message: "Tanda tangan digital pada file PDF TIDAK VALID"
-                                    })
-                                }
-                            })
+                    const fileData = fs.readFileSync(tmp_path);
+                    const pdfDoc = await PDFDocument.load(fileData);
+                    const pdfData = await PDFParser(fileData);
+    
+                    const signature = pdfDoc.getSubject();
+    
+                    if (signature) {
+                        const key = await Key.findOne({
+                            attributes: ['public_key'],
+                            where: {
+                                document_id: id
+                            }
+                        });
+    
+                        if (key) {
+                            const public_key_path = key.public_key;
+                            const publicKey_target_path = path.resolve(
+                                config.rootPath,
+                                `public/uploads/key/${public_key_path}`
+                            );
+    
+                            const publicKey = fs.readFileSync(publicKey_target_path);
+    
+                            const isSignatureValid = verifyWithRSA(publicKey, pdfData.text, signature);
+    
+                            if (isSignatureValid) {
+                                res.status(200).json({
+                                    message: "Tanda tangan digital pada file PDF VALID"
+                                });
+                            } else {
+                                res.status(404).json({
+                                    message: "Tanda tangan digital pada file PDF TIDAK VALID"
+                                });
+                            }
                         } else {
-                            res.status(404).json({
-                                message: "Dokumen belum terdapat tanda tangan!"
-                            })
+                            res.status(404).json({ 
+                                message: "Kunci publik tidak ditemukan untuk dokumen ini."
+                            });
                         }
                     } else {
                         res.status(404).json({
-                            message: "Dokumen perlu di upload!",
-                        })
+                            message: "Dokumen belum terdapat tanda tangan!"
+                        });
                     }
-
-
                 } else {
                     res.status(404).json({
-                        message: "Dokumen tidak ditemukan."
+                        message: "Dokumen perlu di upload!"
                     });
-                };
-            });
+                }
+            } else {
+                res.status(404).json({
+                    message: "Dokumen tidak ditemukan."
+                });
+            }
         } catch (error) {
             res.status(500).json({
-                message: error.message || `Internal server error!`,
+                message: error.message || `Internal server error!`
             });
         }
     },
 
-    documentDelete: (req, res) => {
+    documentDelete: async (req, res) => {
         try {
             const { id } = req.params;
             const user = req.user;
-            
-            pool.query("UPDATE documents SET status='deleted', delete_at=CURRENT_DATE, delete_by=$2 WHERE document_id=$1 AND created_by=$2", [id, user.user_id], (error, results) => {
-                if (error) throw error;
 
+            const updatedDocument = await Document.update(
+                {
+                    status: 'deleted',
+                    deleted_at: new Date(),
+                    deleted_by: user.user_id,
+                },
+                {
+                    where: {
+                        document_id: id,
+                        created_by: user.user_id,
+                    },
+                }
+            );
+
+            if (updatedDocument[0] > 0) {
                 res.status(201).json({
                     message: "Sukses menghapus dokumen",
-                })
-            })
+                });
+            } else {
+                res.status(404).json({
+                    message: "Dokumen tidak ditemukan atau tidak memiliki izin untuk dihapus",
+                });
+            }
         } catch (error) {
             res.status(500).json({
                 message: error.message || `Internal server error!`,
