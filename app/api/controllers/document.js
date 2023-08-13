@@ -546,15 +546,55 @@ module.exports = {
             } else {
                 res.status(404).json({
                     message: "Dokumen tidak ditemukan."
-                })
-            }
-
-
-
+                });
+            };
         } catch (error) {
             res.status(500).json({
                 message: error.message || `Internal server error!`,
             });
-        }
-    }
+        };
+    },
+
+    getDocumentRecipients: async (req, res) => {
+        try {
+            const user = req.user;
+
+            const documentRecipients = await DocumentRecipient.findAll({
+                attributes: ["document_recipient_id", "document_id", "note", "created_at"],
+                where: {
+                    email: user.email,
+                    status: "active",
+                },
+                include: [
+                    {
+                    model: Document,
+                    as: 'document',
+                    attributes: ["document_id", "document_name", "created_at"],
+                    include: [
+                        {
+                        model: User,
+                        as: 'document_created_by',
+                        attributes: ['fullname', 'email'],
+                        },
+                    ],
+                    },
+                ],
+                });
+
+                if (documentRecipients) {
+                    res.status(200).json({
+                        message: "Berhasil mendapatkan data.",
+                        data: documentRecipients,
+                    })
+                } else {
+                res.status(404).json({
+                    message: "Data tidak ditemukan"
+                });
+            };
+        } catch (error) {
+            res.status(500).json({
+                message: error.message || `Internal server error!`,
+            });
+        };
+    },
 };
