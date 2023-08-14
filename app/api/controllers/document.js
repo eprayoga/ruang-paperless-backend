@@ -81,8 +81,6 @@ module.exports = {
                     height: 80,
                     });
 
-                    fs.unlinkSync(qrCodePath);
-
                     const qrPdfBytesTemp = await pdfDoc.save();
 
                     let filename = 'draft-' + originalNotExt + "_" + datetime + "." + originalExt;
