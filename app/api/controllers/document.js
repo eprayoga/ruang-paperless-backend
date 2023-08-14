@@ -60,7 +60,7 @@ module.exports = {
                 const fileData = fs.readFileSync(tmp_path);
 
                 const pdfDoc = await PDFDocument.load(fileData);
-                let qrCodePath = path.resolve(`public/images/qrcode-${originalNotExt}.png`);
+                let qrCodePath = path.resolve(`public/images/qrcode-${document_id}.png`);
                 qrcode.toFile(qrCodePath, `${process.env.FRONTEND_URL}/document-verify/${document_id}`, {
                     errorCorrectionLevel: "H"
                 }, async (err) => {
