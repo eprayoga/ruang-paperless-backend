@@ -179,7 +179,7 @@ module.exports = {
             const { id } = req.params;
 
             const document = await Document.findOne({
-                attributes: ['document_id', 'created_by', 'document_name', 'signed_by', 'document_path', 'created_at'],
+                attributes: ['document_id', 'created_by', 'document_name', 'signed_by', 'document_path', 'created_at', 'updated_at'],
                 where: {
                     document_id: id,
                     status: {
