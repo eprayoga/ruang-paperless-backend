@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const os = require("os");
 const multer = require("multer");
-const { uploadDocument, getDocumentDetail, getAllUserDocument, documentSign, documentDelete, documentSend, documentVerify, getDocumentRecipients } = require("../controllers/document");
+const { uploadDocument, getDocumentDetail, getAllUserDocument, documentSign, documentDelete, documentSend, documentVerify, getDocumentRecipients, documentRecipientDelete } = require("../controllers/document");
 const { isLoginUser } = require("../../middleware/auth")
 
 router.get('/', isLoginUser, getAllUserDocument);
@@ -13,5 +13,6 @@ router.post('/verify/:id', multer({ dest: os.tmpdir() }).single("document"), doc
 router.delete('/delete/:id', isLoginUser, documentDelete);
 router.post('/send/:id', isLoginUser, documentSend);
 router.get('/recipient', isLoginUser, getDocumentRecipients);
+router.delete('/recipient/delete/:id', isLoginUser, documentRecipientDelete);
 
 module.exports = router;

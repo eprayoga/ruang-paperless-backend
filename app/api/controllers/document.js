@@ -444,7 +444,7 @@ module.exports = {
             });
 
             if (document) {
-                const downloadLink = `${baseUrl}/uploads/document/signed-${document.document_path}`;
+                const viewLink = `${process.env.FRONTEND_URL}/view/${document.document_id}`;
                 const verifyLink = `${process.env.FRONTEND_URL}/document-verify/${document.document_id}`;
 
                 // Generate recipient_id
@@ -497,8 +497,8 @@ module.exports = {
                                 instructions: "Untuk mengunduh dokumen tersebut, silahkan klik tombol dibawah.",
                                 button: {
                                     color: '#4F709C',
-                                    text: 'Unduh Sekarang',
-                                    link: downloadLink,
+                                    text: 'Lihat Dokumen',
+                                    link: viewLink,
                                 }
                             },
                             {
@@ -594,5 +594,40 @@ module.exports = {
                 message: error.message || `Internal server error!`,
             });
         };
+    },
+    
+    documentRecipientDelete: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const user = req.user;
+
+            const updatedDocument = await DocumentRecipient.update(
+                {
+                    status: 'deleted',
+                    deleted_at: new Date(),
+                    deleted_by: user.user_id,
+                },
+                {
+                    where: {
+                        document_recipient_id: id,
+                        email: user.email,
+                    },
+                }
+            );
+
+            if (updatedDocument[0] > 0) {
+                res.status(201).json({
+                    message: "Sukses menghapus pengiriman dokumen",
+                });
+            } else {
+                res.status(404).json({
+                    message: "Dokumen tidak ditemukan atau tidak memiliki izin untuk dihapus",
+                });
+            }
+        } catch (error) {
+            res.status(500).json({
+                message: error.message || `Internal server error!`,
+            });   
+        }
     },
 };
