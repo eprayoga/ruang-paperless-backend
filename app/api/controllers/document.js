@@ -445,7 +445,6 @@ module.exports = {
             const user = req.user;
             const { id } = req.params;
             const { email, note } = req.body;
-            const baseUrl = req.get('host');
             
             const document = await Document.findOne({
                 attributes: ['document_id', 'created_by', 'document_name', 'signed_by', 'document_path', 'created_at'],
