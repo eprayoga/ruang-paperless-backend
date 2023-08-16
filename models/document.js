@@ -18,7 +18,7 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'document_id',
         as: 'keys'
       });
-      Document.hasMany(models.Key, {
+      Document.hasMany(models.DocumentRecipient, {
         foreignKey: 'document_id',
         as: 'documentrecipients'
       });

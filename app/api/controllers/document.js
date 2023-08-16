@@ -130,7 +130,14 @@ module.exports = {
                         where: {
                             created_by: user.user_id,
                             status,
-                        }
+                        },
+                        include: [
+                            {
+                                attributes: ["document_recipient_id", "email", "note", "created_at"],
+                                model: DocumentRecipient,
+                                as: 'documentrecipients',
+                            }
+                        ]
                     });
                     
                     res.status(200).json({
@@ -141,7 +148,14 @@ module.exports = {
                         where: {
                             created_by: user.user_id,
                             status: 'not-signed'
-                        }
+                        },
+                        include: [
+                            {
+                                attributes: ["document_recipient_id", "email", "note", "created_at"],
+                                model: DocumentRecipient,
+                                as: 'documentrecipients',
+                            }
+                        ]
                     });
 
                     res.status(200).json({
@@ -160,9 +174,16 @@ module.exports = {
                         status: {
                             [Op.not]: 'deleted'
                         }
-                    }
+                    },
+                    include: [
+                        {
+                            attributes: ["document_recipient_id", "email", "note", "created_at"],
+                            model: DocumentRecipient,
+                            as: 'documentrecipients',
+                        }
+                    ]
                 });
-
+                
                 res.status(200).json({
                     data: documents
                 });
