@@ -650,4 +650,26 @@ module.exports = {
             });   
         }
     },
+
+    documentDownload: async (req, res) => {
+        try {
+            const { id } = req.params;
+
+            const document = await Document.findOne({
+                attributes: ['document_id', 'document_path'],
+                where: {
+                    document_id: id
+                }
+            });
+
+            const filename = `signed-${document.document_path}`
+
+            res.sendFile(filename, {root: path.resolve(config.rootPath,`public/uploads/document/`)})
+
+        } catch (error) {
+            res.status(500).json({
+                message: error.message || `Internal server error!`,
+            });  
+        }
+    }
 };
