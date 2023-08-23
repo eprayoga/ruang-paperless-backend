@@ -654,6 +654,7 @@ module.exports = {
     documentDownload: async (req, res) => {
         try {
             const { id } = req.params;
+            const { signed } = req.query;
 
             const document = await Document.findOne({
                 attributes: ['document_id', 'document_path'],
@@ -662,10 +663,18 @@ module.exports = {
                 }
             });
 
-            const filename = `signed-${document.document_path}`
-
-            res.sendFile(filename, {root: path.resolve(config.rootPath,`public/uploads/document/`)})
-
+            if (document) {
+                let filename = document.document_path;
+                if (signed) {
+                    filename = `signed-${document.document_path}`
+                };
+    
+                res.sendFile(filename, {root: path.resolve(config.rootPath,`public/uploads/document/`)})
+            } else {
+                res.status(404).json({
+                    message: "Dokumen tidak ditemukan!."
+                })
+            }
         } catch (error) {
             res.status(500).json({
                 message: error.message || `Internal server error!`,
