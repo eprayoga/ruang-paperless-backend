@@ -14,10 +14,6 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'signed_by',
         as: 'signedByUser',
       });
-      Document.hasOne(models.Key, {
-        foreignKey: 'document_id',
-        as: 'keys'
-      });
       Document.hasMany(models.DocumentRecipient, {
         foreignKey: 'document_id',
         as: 'documentrecipients'

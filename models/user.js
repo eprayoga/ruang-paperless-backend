@@ -9,10 +9,10 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'user_id',
         as: 'pins'
       });
-      // User.hasMany(models.Document, {
-      //   foreignKey: 'signed_by',
-      //   as: 'documentSigned'
-      // });
+      User.hasOne(models.Key, {
+        foreignKey: 'user_id',
+        as: 'keys'
+      });
     }
   }
   User.init({

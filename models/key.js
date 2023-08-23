@@ -10,9 +10,9 @@ module.exports = (sequelize, DataTypes) => {
      * The `models/index` file will call this method automatically.
      */
     static associate(models) {
-      Key.belongsTo(models.Document, {
-        foreignKey: 'document_id',
-        as: 'document',
+      Key.belongsTo(models.User, {
+        foreignKey: 'user_id',
+        as: 'user_document',
       });
       Key.belongsTo(models.User, {
         foreignKey: 'created_by',
@@ -35,7 +35,7 @@ module.exports = (sequelize, DataTypes) => {
       primaryKey: true,
       type: DataTypes.INTEGER
     },
-    document_id: {
+    user_id: {
       allowNull: false,
       type: DataTypes.STRING,
     },

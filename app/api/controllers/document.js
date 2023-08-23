@@ -238,24 +238,48 @@ module.exports = {
             const { id } = req.params;
             const user = req.user;
 
-            // Generate RSA key pair
-            const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
-                modulusLength: 2048,
-                publicKeyEncoding: {
-                    type: "pkcs1",
-                    format: "pem",
-                },
-                privateKeyEncoding: {
-                    type: "pkcs1",
-                    format: "pem",
-                },
-            });
+            const checkKey = await Key.findOne({ where: { user_id: user.user_id } })
 
-            const privateKeyPath = `private-${id}.pem`;
-            const publicKeyPath = `public-${id}.pem`;
+            const privateKeyPath = `private-${user.user_id}.pem`;
+            const publicKeyPath = `public-${user.user_id}.pem`;
 
-            fs.writeFileSync(`public/uploads/key/${privateKeyPath}`, privateKey);
-            fs.writeFileSync(`public/uploads/key/${publicKeyPath}`, publicKey);
+            if (!checkKey) {
+                // Generate RSA key pair
+                const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
+                    modulusLength: 2048,
+                    publicKeyEncoding: {
+                        type: "pkcs1",
+                        format: "pem",
+                    },
+                    privateKeyEncoding: {
+                        type: "pkcs1",
+                        format: "pem",
+                    },
+                });
+
+                fs.writeFileSync(`public/uploads/key/${privateKeyPath}`, privateKey);
+                fs.writeFileSync(`public/uploads/key/${publicKeyPath}`, publicKey);
+
+                await Key.create(
+                    {
+                        user_id: user.user_id,
+                        public_key: publicKeyPath,
+                        private_key: privateKeyPath,
+                        created_by: user.user_id,
+                        updated_by: user.user_id
+                    },
+                );
+            }
+            
+            const private_key_path = privateKeyPath;
+            const privateKey_target_path = path.resolve(
+                config.rootPath,
+                `public/uploads/key/${private_key_path}`
+            );
+            
+            const privateKey = fs.readFileSync(privateKey_target_path);
+
+            console.log(privateKeyPath)
 
             const document = await Document.findOne({
                 attributes: ['document_path', 'document_id'],
@@ -302,16 +326,6 @@ module.exports = {
                     }
                 );
 
-                await Key.create(
-                    {
-                        document_id: doc.document_id,
-                        public_key: publicKeyPath,
-                        private_key: privateKeyPath,
-                        created_by: user.user_id,
-                        updated_by: user.user_id
-                    },
-                );
-
                 res.status(201).json({
                     message: "Berhasil menanda tangani dokumen.",
                 });
@@ -334,7 +348,7 @@ module.exports = {
             const { id } = req.params;
     
             const document = await Document.findOne({
-                attributes: ['document_id', 'document_path'],
+                attributes: ['document_id', 'document_path', 'created_by'],
                 where: {
                     document_id: id
                 }
@@ -354,7 +368,7 @@ module.exports = {
                         const key = await Key.findOne({
                             attributes: ['public_key'],
                             where: {
-                                document_id: id
+                                user_id: document.created_by
                             }
                         });
     

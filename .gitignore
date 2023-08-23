@@ -1,2 +1,4 @@
 # dependencies
 /node_modules
+/public/uploads/document/
+/public/uploads/key/
