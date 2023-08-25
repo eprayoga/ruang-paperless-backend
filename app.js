@@ -7,9 +7,6 @@ var cookieParser = require("cookie-parser");
 var logger = require("morgan");
 const cors = require("cors");
 
-
-//boniw
-//end
 var indexRouter = require("./routes/index");
 var usersRouter = require("./routes/users");
 // API
@@ -55,10 +52,10 @@ app.use(function (err, req, res, next) {
   res.render("error");
 });
 
-// Definisi dan menjalankan server pada port yang telah ditentukan
+//boniw
 const port = process.env.PORT || 9006;
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
-
+//end
 module.exports = app;
