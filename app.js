@@ -1,3 +1,5 @@
+
+
 var createError = require("http-errors");
 var express = require("express");
 var path = require("path");
@@ -5,6 +7,9 @@ var cookieParser = require("cookie-parser");
 var logger = require("morgan");
 const cors = require("cors");
 
+
+//boniw
+//end
 var indexRouter = require("./routes/index");
 var usersRouter = require("./routes/users");
 // API
@@ -38,6 +43,7 @@ app.use(function (req, res, next) {
   next(createError(404));
 });
 
+
 // error handler
 app.use(function (err, req, res, next) {
   // set locals, only providing error in development
@@ -47,6 +53,12 @@ app.use(function (err, req, res, next) {
   // render the error page
   res.status(err.status || 500);
   res.render("error");
+});
+
+// Definisi dan menjalankan server pada port yang telah ditentukan
+const port = process.env.PORT || 9006;
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
 });
 
 module.exports = app;
